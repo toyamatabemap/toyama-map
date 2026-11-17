@@ -118,7 +118,7 @@
       </div>
     </div>
 
-    <!-- リストタブ切り替え（すべて / 保存したお店）※高さをコンパクトに調整 -->
+    <!-- リストタブ切り替え（すべて / 保存したお店） -->
     <div class="grid grid-cols-2 gap-1 px-2 py-1 bg-amber-100/60 border-b border-amber-200 flex-shrink-0 text-[11px] font-black">
       <button onclick="switchTab('all')" id="tabAll" class="py-1 rounded-md bg-orange-500 text-white shadow-sm transition">🏠 すべてのお店</button>
       <button onclick="switchTab('saved')" id="tabSaved" class="py-1 rounded-md bg-white text-orange-900 border border-orange-200 transition">🔖 保存したお店</button>
@@ -348,7 +348,7 @@
       applyFilterAndDraw();
     }
 
-    // --- SNSシェア機能 (Xのアイコン色を確実に白抜きに修正) ---
+    // --- SNSシェア機能 ---
     function shareOnX(spotName, desc) {
       const text = encodeURIComponent(`「${spotName}」 - 食いしん坊大学生の富山たべマップ😋\n${desc}\n#富山たべマップ #富山グルメ`);
       const url = encodeURIComponent(window.location.href);
@@ -587,7 +587,6 @@
             <div class="p-2 space-y-1.5 bg-white">
               <div class="flex items-center justify-between">
                 <h3 class="font-black text-gray-900 text-xs truncate leading-tight flex-1 pr-1">${s.name}</h3>
-                <!-- ハート＝人気（みんなのいいね数） -->
                 <button onclick="toggleLike('${s.name}', event)" 
                         class="px-2 py-0.5 rounded-lg text-[9px] font-black shadow-sm flex items-center gap-1 bg-red-50 text-red-500 border border-red-200">
                   <i class="fa-solid fa-heart text-red-500"></i> ${count}
@@ -598,16 +597,16 @@
               
               <p class="text-[10px] text-gray-700 leading-tight font-bold bg-amber-50/80 p-1.5 rounded-lg border border-amber-100">💬 "${s.desc}"</p>
 
-              <!-- 保存ボタン & シェアボタン -->
+              <!-- 保存ボタン (見やすい青色) & シェアボタン -->
               <div class="flex gap-1">
                 <button onclick="toggleSave('${s.name}', event)" 
-                        class="flex-1 py-1 rounded-md text-[9px] font-black flex items-center justify-center gap-1 border ${isSaved ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-amber-700 border-amber-300'} shadow-sm">
+                        class="flex-1 py-1 rounded-md text-[9px] font-black flex items-center justify-center gap-1 border ${isSaved ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-700 border-blue-300'} shadow-sm">
                   <i class="fa-solid fa-bookmark"></i> ${isSaved ? '保存済み' : '🔖 保存する'}
                 </button>
                 <button onclick="shareOnLine('${s.name}')" class="px-2 py-1 bg-green-500 text-white rounded-md text-[9px] font-black shadow-sm flex items-center justify-center" title="LINEでシェア">
                   <i class="fa-brands fa-line text-xs"></i>
                 </button>
-                <button onclick="shareOnX('${s.name}', '${s.desc}')" class="px-2 py-1 bg-black text-white rounded-md text-[9px] font-black shadow-sm flex items-center justify-center" title="Xでシェア">
+                <button onclick="shareOnX('${s.name}', '${s.desc}')" class="px-2 py-1 bg-slate-900 text-white rounded-md text-[9px] font-black shadow-sm flex items-center justify-center" title="Xでシェア">
                   <i class="fa-brands fa-x-twitter text-xs text-white"></i>
                 </button>
               </div>
@@ -632,9 +631,10 @@
           </div>
         `;
 
+        // マップ上のピン：しおりマークなしでカテゴリー絵文字のみに統一
         const foodPinIcon = L.divIcon({
           className: 'custom-pin-wrapper',
-          html: `<div class="custom-food-pin" style="background-color: ${isSaved ? '#f59e0b' : catStyle.color}">${isSaved ? '🔖' : catStyle.emoji}</div>`,
+          html: `<div class="custom-food-pin" style="background-color: ${isSaved ? '#2563eb' : catStyle.color}">${catStyle.emoji}</div>`,
           iconSize: [26, 26],
           iconAnchor: [13, 13],
           popupAnchor: [0, -10]
@@ -658,12 +658,12 @@
         markerGroup.addLayer(marker);
 
         const card = document.createElement('div');
-        card.className = `bg-white p-2 border-2 ${isSaved ? 'border-amber-300 bg-amber-50/30' : 'border-orange-100'} rounded-xl hover:border-orange-300 transition cursor-pointer flex gap-2 items-center group relative overflow-hidden`;
+        card.className = `bg-white p-2 border-2 ${isSaved ? 'border-blue-300 bg-blue-50/20' : 'border-orange-100'} rounded-xl hover:border-orange-300 transition cursor-pointer flex gap-2 items-center group relative overflow-hidden`;
         
+        // リストカード：画像にしおりマークをつけず、インスタボタンを配置
         card.innerHTML = `
           <div class="w-12 aspect-[3/4] bg-slate-900 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0 border border-amber-100 relative">
             <img src="${s.imgUrl}" loading="lazy" class="w-full h-full object-cover" onerror="this.src='https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300&auto=format&fit=crop'">
-            ${isSaved ? '<span class="absolute inset-0 bg-amber-900/40 flex items-center justify-center text-white text-xs font-black">🔖</span>' : ''}
           </div>
           <div class="flex-1 min-w-0">
             <div class="flex justify-between items-start gap-1">
@@ -674,8 +674,11 @@
             <div class="flex items-center justify-between mt-1.5">
               ${distText ? `<span class="text-[8px] font-black text-orange-600">${distText}</span>` : '<span></span>'}
               <div class="flex gap-1 items-center">
-                <button onclick="toggleSave('${s.name}', event)" class="text-[8px] font-black ${isSaved ? 'text-amber-800 bg-amber-100 border-amber-300' : 'text-gray-400 bg-gray-50 border-gray-200'} px-2 py-1 rounded-lg border shadow-sm flex items-center gap-0.5">
-                  ${isSaved ? '🔖 保存中' : '🔖 未保存'}
+                <a href="${s.postUrl}" target="_blank" onclick="event.stopPropagation();" class="insta-btn text-white text-[8px] font-black px-2 py-1 rounded-lg flex items-center gap-0.5 shadow-sm" title="Instagramで見る">
+                  <i class="fa-brands fa-instagram text-[9px]"></i> 投稿
+                </a>
+                <button onclick="toggleSave('${s.name}', event)" class="text-[8px] font-black ${isSaved ? 'text-white bg-blue-600 border-blue-600' : 'text-blue-700 bg-blue-50 border-blue-200'} px-2 py-1 rounded-lg border shadow-sm flex items-center gap-0.5">
+                  ${isSaved ? '🔖 保存中' : '🔖 保存'}
                 </button>
                 <button onclick="toggleLike('${s.name}', event)" class="text-[10px] font-black text-red-500 bg-red-50 px-2 py-1 rounded-xl flex items-center gap-1 border border-red-200 shadow-sm">
                   <i class="fa-solid fa-heart text-[10px]"></i> ${count}
