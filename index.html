@@ -47,7 +47,6 @@
       display: none !important;
     }
 
-    /* クレジット（出典）表記を左上に配置 */
     .leaflet-left .leaflet-control-attribution {
       margin-left: 6px !important;
       margin-top: 6px !important;
@@ -127,7 +126,7 @@
                class="w-full pl-8 pr-2.5 py-1 border-2 border-orange-200 rounded-full text-xs font-bold focus:outline-none focus:border-orange-400 bg-white">
       </div>
       
-      <!-- カテゴリタグ（全16種類） -->
+      <!-- カテゴリタグ -->
       <div class="flex gap-1 overflow-x-auto pb-0.5 text-[10px]" id="categoryFilter">
         <button onclick="filterCategory('all')" class="cat-btn bg-orange-500 text-white font-black px-2.5 py-0.5 rounded-full whitespace-nowrap shadow-sm">全部 🍚</button>
         <button onclick="filterCategory('洋食')" class="cat-btn bg-white text-orange-900 font-bold border border-orange-200 px-2.5 py-0.5 rounded-full whitespace-nowrap">洋食 🍳</button>
@@ -148,7 +147,7 @@
         <button onclick="filterCategory('食べ放題')" class="cat-btn bg-white text-orange-900 font-bold border border-orange-200 px-2.5 py-0.5 rounded-full whitespace-nowrap">食べ放題 🍽️</button>
       </div>
 
-      <!-- 並び替え（ソート）ボタン群 -->
+      <!-- 並び替えボタン群 -->
       <div class="flex items-center justify-between text-[10px] pt-1 border-t border-amber-100/80">
         <span class="font-bold text-gray-500 text-[9px]"><i class="fa-solid fa-arrow-down-wide-short text-orange-400"></i> 並び替え:</span>
         <div class="flex gap-1" id="sortFilter">
@@ -187,9 +186,6 @@
       if (deferredPrompt) {
         deferredPrompt.prompt();
         deferredPrompt.userChoice.then((choiceResult) => {
-          if (choiceResult.outcome === 'accepted') {
-            console.log('ユーザーがアプリインストールを承認しました');
-          }
           deferredPrompt = null;
           document.getElementById('installAppBtn').style.display = 'none';
         });
@@ -328,7 +324,6 @@
       localStorage.setItem('my_liked_spots', JSON.stringify(likes));
     }
 
-    // ★修正：Firestoreのいいね数を安全にトランザクション/インクリメントで更新＆UI即時反映
     function toggleLike(spotName, event) {
       if (event) event.stopPropagation();
 
@@ -338,13 +333,12 @@
 
       setMyLike(spotName, nextLikedState);
 
-      // 楽観的UI更新（ローカルのカウントを即時増減させる）
+      // 楽観的UI更新
       const currentCount = likeCounts[spotName] || 0;
       likeCounts[spotName] = Math.max(0, currentCount + (nextLikedState ? 1 : -1));
       applyFilterAndDraw();
 
       if (db) {
-        // ドキュメントIDに安全な文字列を使うためbtoa（Base64エンコード）またはそのまま保持
         const docId = btoa(unescape(encodeURIComponent(spotName)));
         const docRef = db.collection('likes').doc(docId);
 
@@ -399,7 +393,7 @@
       return `${rawKm.toFixed(1)}km`;
     }
 
-    // ★修正：Firestoreのリアルタイムリスナーを最初に仕込み、他の人が押した数も自動で全体同期されるようにする
+    // ★ Firestoreのリアルタイムリスナーを設置
     if (db) {
       db.collection('likes').onSnapshot(snapshot => {
         snapshot.forEach(doc => {
