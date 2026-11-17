@@ -348,13 +348,7 @@
       applyFilterAndDraw();
     }
 
-    // --- SNSシェア機能 ---
-    function shareOnX(spotName, desc) {
-      const text = encodeURIComponent(`「${spotName}」 - 食いしん坊大学生の富山たべマップ😋\n${desc}\n#富山たべマップ #富山グルメ`);
-      const url = encodeURIComponent(window.location.href);
-      window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank');
-    }
-
+    // --- LINEシェア機能のみ残す ---
     function shareOnLine(spotName) {
       const text = encodeURIComponent(`富山たべマップのおすすめ店「${spotName}」！ここ美味しそう😋\n${window.location.href}`);
       window.open(`https://social-plugins.line.me/lineit/share?url=${text}`, '_blank');
@@ -597,17 +591,14 @@
               
               <p class="text-[10px] text-gray-700 leading-tight font-bold bg-amber-50/80 p-1.5 rounded-lg border border-amber-100">💬 "${s.desc}"</p>
 
-              <!-- 保存ボタン (見やすい青色) & シェアボタン -->
+              <!-- 保存ボタン & LINEシェアボタン -->
               <div class="flex gap-1">
                 <button onclick="toggleSave('${s.name}', event)" 
                         class="flex-1 py-1 rounded-md text-[9px] font-black flex items-center justify-center gap-1 border ${isSaved ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-700 border-blue-300'} shadow-sm">
                   <i class="fa-solid fa-bookmark"></i> ${isSaved ? '保存済み' : '🔖 保存する'}
                 </button>
-                <button onclick="shareOnLine('${s.name}')" class="px-2 py-1 bg-green-500 text-white rounded-md text-[9px] font-black shadow-sm flex items-center justify-center" title="LINEでシェア">
-                  <i class="fa-brands fa-line text-xs"></i>
-                </button>
-                <button onclick="shareOnX('${s.name}', '${s.desc}')" class="px-2 py-1 bg-slate-900 text-white rounded-md text-[9px] font-black shadow-sm flex items-center justify-center" title="Xでシェア">
-                  <i class="fa-brands fa-x-twitter text-xs text-white"></i>
+                <button onclick="shareOnLine('${s.name}')" class="px-3 py-1 bg-green-500 text-white rounded-md text-[9px] font-black shadow-sm flex items-center justify-center gap-1" title="LINEでシェア">
+                  <i class="fa-brands fa-line text-xs"></i> LINEで送る
                 </button>
               </div>
 
@@ -631,7 +622,6 @@
           </div>
         `;
 
-        // マップ上のピン：しおりマークなしでカテゴリー絵文字のみに統一
         const foodPinIcon = L.divIcon({
           className: 'custom-pin-wrapper',
           html: `<div class="custom-food-pin" style="background-color: ${isSaved ? '#2563eb' : catStyle.color}">${catStyle.emoji}</div>`,
@@ -660,7 +650,6 @@
         const card = document.createElement('div');
         card.className = `bg-white p-2 border-2 ${isSaved ? 'border-blue-300 bg-blue-50/20' : 'border-orange-100'} rounded-xl hover:border-orange-300 transition cursor-pointer flex gap-2 items-center group relative overflow-hidden`;
         
-        // リストカード：画像にしおりマークをつけず、インスタボタンを配置
         card.innerHTML = `
           <div class="w-12 aspect-[3/4] bg-slate-900 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0 border border-amber-100 relative">
             <img src="${s.imgUrl}" loading="lazy" class="w-full h-full object-cover" onerror="this.src='https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300&auto=format&fit=crop'">
