@@ -40,7 +40,7 @@
     }
     .leaflet-popup-content {
       margin: 0 !important;
-      width: 210px !important;
+      width: 230px !important;
     }
 
     .leaflet-container a.leaflet-popup-close-button {
@@ -116,6 +116,13 @@
           <i class="fa-solid fa-download"></i> アプリ化
         </button>
       </div>
+    </div>
+
+    <!-- リストタブ切り替え（すべて / 行きたい / 行った店） -->
+    <div class="grid grid-cols-3 gap-1 p-2 bg-amber-100/60 border-b border-amber-200 flex-shrink-0 text-xs font-black">
+      <button onclick="switchTab('all')" id="tabAll" class="py-1.5 rounded-lg bg-orange-500 text-white shadow-sm transition">🏠 すべて</button>
+      <button onclick="switchTab('likes')" id="tabLikes" class="py-1.5 rounded-lg bg-white text-orange-900 border border-orange-200 transition">❤️ 行きたい</button>
+      <button onclick="switchTab('visited')" id="tabVisited" class="py-1.5 rounded-lg bg-white text-orange-900 border border-orange-200 transition">✅ 行った店</button>
     </div>
 
     <!-- 検索 & フィルター & 並び替え -->
@@ -229,6 +236,7 @@
     let currentFilterCat = 'all';
     let currentSearchVal = '';
     let currentSortMode = 'default';
+    let currentTab = 'all'; // 'all' | 'likes' | 'visited'
 
     let markerGroup = L.layerGroup().addTo(myMap);
     let openPopupSpotName = null;
@@ -313,15 +321,54 @@
       return rawUrl;
     }
 
+    // --- ローカルストレージ管理 (行きたい / 行った店) ---
     function getMyLikes() {
       return JSON.parse(localStorage.getItem('my_liked_spots') || '{}');
     }
-
     function setMyLike(name, isLiked) {
       const likes = getMyLikes();
       if (isLiked) likes[name] = true;
       else delete likes[name];
       localStorage.setItem('my_liked_spots', JSON.stringify(likes));
+    }
+
+    function getMyVisited() {
+      return JSON.parse(localStorage.getItem('my_visited_spots') || '{}');
+    }
+    function toggleVisited(spotName, event) {
+      if (event) event.stopPropagation();
+      const visited = getMyVisited();
+      const isVisited = !!visited[spotName];
+      if (!isVisited) visited[spotName] = true;
+      else delete visited[spotName];
+      localStorage.setItem('my_visited_spots', JSON.stringify(visited));
+      applyFilterAndDraw();
+    }
+
+    // --- タブ切り替え処理 ---
+    function switchTab(tab) {
+      currentTab = tab;
+      ['all', 'likes', 'visited'].forEach(t => {
+        const btn = document.getElementById(`tab${t.charAt(0).toUpperCase() + t.slice(1)}`);
+        if (t === tab) {
+          btn.className = 'py-1.5 rounded-lg bg-orange-500 text-white shadow-sm transition';
+        } else {
+          btn.className = 'py-1.5 rounded-lg bg-white text-orange-900 border border-orange-200 transition';
+        }
+      });
+      applyFilterAndDraw();
+    }
+
+    // --- SNSシェア機能 ---
+    function shareOnX(spotName, desc) {
+      const text = encodeURIComponent(`「${spotName}」 - 食いしん坊大学生の富山たべマップ😋\n${desc}\n#富山たべマップ #富山グルメ`);
+      const url = encodeURIComponent(window.location.href);
+      window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank');
+    }
+
+    function shareOnLine(spotName) {
+      const text = encodeURIComponent(`富山たべマップのおすすめ店「${spotName}」！ここ美味しそう😋\n${window.location.href}`);
+      window.open(`https://social-plugins.line.me/lineit/share?url=${text}`, '_blank');
     }
 
     function toggleLike(spotName, event) {
@@ -333,7 +380,6 @@
 
       setMyLike(spotName, nextLikedState);
 
-      // 楽観的UI更新
       const currentCount = likeCounts[spotName] || 0;
       likeCounts[spotName] = Math.max(0, currentCount + (nextLikedState ? 1 : -1));
       applyFilterAndDraw();
@@ -393,7 +439,6 @@
       return `${rawKm.toFixed(1)}km`;
     }
 
-    // ★ Firestoreのリアルタイムリスナーを設置
     if (db) {
       db.collection('likes').onSnapshot(snapshot => {
         snapshot.forEach(doc => {
@@ -462,6 +507,14 @@
     function applyFilterAndDraw() {
       let result = [...spotsData];
 
+      const myLikes = getMyLikes();
+      const myVisited = getMyVisited();
+      if (currentTab === 'likes') {
+        result = result.filter(s => myLikes[s.name]);
+      } else if (currentTab === 'visited') {
+        result = result.filter(s => myVisited[s.name]);
+      }
+
       if (currentSearchVal) {
         const query = currentSearchVal.trim().toLowerCase();
         result = result.filter(s => {
@@ -513,6 +566,7 @@
       }
 
       const myLikes = getMyLikes();
+      const myVisited = getMyVisited();
       let activeMarkerToReopen = null;
 
       data.forEach(function(s) {
@@ -521,6 +575,7 @@
         const instaSearchUrl = `https://www.instagram.com/explore/tags/${encodedKw}/`;
         const count = likeCounts[s.name] || 0;
         const isLiked = !!myLikes[s.name];
+        const isVisited = !!myVisited[s.name];
 
         let distText = '';
         if (userLatLng) {
@@ -541,7 +596,7 @@
               </button>
             </div>
             
-            <div class="p-2 space-y-1 bg-white">
+            <div class="p-2 space-y-1.5 bg-white">
               <div class="flex items-center justify-between">
                 <h3 class="font-black text-gray-900 text-xs truncate leading-tight flex-1 pr-1">${s.name}</h3>
                 <button onclick="toggleLike('${s.name}', event)" 
@@ -552,7 +607,21 @@
               
               ${distText ? `<p class="text-[8px] text-orange-600 font-extrabold">${distText}</p>` : ''}
               
-              <p class="text-[10px] text-gray-700 leading-tight font-bold bg-amber-50/80 p-1 rounded-lg border border-amber-100">💬 "${s.desc}"</p>
+              <p class="text-[10px] text-gray-700 leading-tight font-bold bg-amber-50/80 p-1.5 rounded-lg border border-amber-100">💬 "${s.desc}"</p>
+
+              <!-- 行った！チェック & シェアボタン -->
+              <div class="flex gap-1">
+                <button onclick="toggleVisited('${s.name}', event)" 
+                        class="flex-1 py-1 rounded-md text-[9px] font-black flex items-center justify-center gap-1 border ${isVisited ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-emerald-700 border-emerald-300'} shadow-sm">
+                  <i class="fa-solid fa-check"></i> ${isVisited ? '行ったよ！' : '行った！にする'}
+                </button>
+                <button onclick="shareOnLine('${s.name}')" class="px-2 py-1 bg-green-500 text-white rounded-md text-[9px] font-black shadow-sm" title="LINEでシェア">
+                  <i class="fa-brands fa-line"></i>
+                </button>
+                <button onclick="shareOnX('${s.name}', '${s.desc}')" class="px-2 py-1 bg-black text-white rounded-md text-[9px] font-black shadow-sm" title="Xでシェア">
+                  <i class="fa-brands fa-x-twitter"></i>
+                </button>
+              </div>
 
               <div class="space-y-1 pt-0.5">
                 <a href="${s.postUrl}" target="_blank" class="w-full py-1 px-1.5 bg-gradient-to-r from-purple-600 to-pink-500 text-white text-[10px] font-black rounded-lg flex items-center justify-center gap-1 shadow-sm">
@@ -576,7 +645,7 @@
 
         const foodPinIcon = L.divIcon({
           className: 'custom-pin-wrapper',
-          html: `<div class="custom-food-pin" style="background-color: ${catStyle.color}">${catStyle.emoji}</div>`,
+          html: `<div class="custom-food-pin" style="background-color: ${isVisited ? '#059669' : catStyle.color}">${isVisited ? '✅' : catStyle.emoji}</div>`,
           iconSize: [26, 26],
           iconAnchor: [13, 13],
           popupAnchor: [0, -10]
@@ -600,23 +669,30 @@
         markerGroup.addLayer(marker);
 
         const card = document.createElement('div');
-        card.className = 'bg-white p-2 border-2 border-orange-100 rounded-xl hover:border-orange-300 transition cursor-pointer flex gap-2 items-center group relative overflow-hidden';
+        card.className = `bg-white p-2 border-2 ${isVisited ? 'border-emerald-300 bg-emerald-50/30' : 'border-orange-100'} rounded-xl hover:border-orange-300 transition cursor-pointer flex gap-2 items-center group relative overflow-hidden`;
         
+        // ★修正：一覧リスト側の説明文（desc）を省略せずに折り返し表示されるように変更（line-clampなどを外して全文表示）
         card.innerHTML = `
-          <div class="w-12 aspect-[3/4] bg-slate-900 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0 border border-amber-100">
+          <div class="w-12 aspect-[3/4] bg-slate-900 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0 border border-amber-100 relative">
             <img src="${s.imgUrl}" loading="lazy" class="w-full h-full object-cover" onerror="this.src='https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300&auto=format&fit=crop'">
+            ${isVisited ? '<span class="absolute inset-0 bg-emerald-900/40 flex items-center justify-center text-white text-xs font-black">✅</span>' : ''}
           </div>
           <div class="flex-1 min-w-0">
             <div class="flex justify-between items-start gap-1">
               <h4 class="font-black text-gray-800 text-xs truncate flex items-center gap-1">${s.name}</h4>
               <span class="text-[8px] font-black px-1.5 py-0.5 rounded-full text-white whitespace-nowrap" style="background-color:${catStyle.color}">${catStyle.emoji} ${s.category}</span>
             </div>
-            <p class="text-[9px] text-gray-500 font-bold truncate mt-0.5">${s.desc}</p>
-            <div class="flex items-center justify-between mt-1">
+            <p class="text-[9px] text-gray-600 font-bold mt-0.5 leading-tight">${s.desc}</p>
+            <div class="flex items-center justify-between mt-1.5">
               ${distText ? `<span class="text-[8px] font-black text-orange-600">${distText}</span>` : '<span></span>'}
-              <button onclick="toggleLike('${s.name}', event)" class="text-[8px] font-black ${isLiked ? 'text-white bg-red-500' : 'text-red-500 bg-red-50'} px-1.5 py-0.5 rounded-full flex items-center gap-0.5 border border-red-100">
-                <i class="fa-solid fa-heart text-[7px]"></i> ${count}
-              </button>
+              <div class="flex gap-1 items-center">
+                <button onclick="toggleVisited('${s.name}', event)" class="text-[8px] font-black ${isVisited ? 'text-emerald-700 bg-emerald-100 border-emerald-300' : 'text-gray-400 bg-gray-50 border-gray-200'} px-2 py-1 rounded-lg border shadow-sm">
+                  ${isVisited ? '✅ 行った' : '✔️ 未'}
+                </button>
+                <button onclick="toggleLike('${s.name}', event)" class="text-[10px] font-black ${isLiked ? 'text-white bg-red-500' : 'text-red-500 bg-red-50'} px-2.5 py-1 rounded-xl flex items-center gap-1 border border-red-200 shadow-sm">
+                  <i class="fa-solid fa-heart text-[10px]"></i> ${count}
+                </button>
+              </div>
             </div>
           </div>
         `;
