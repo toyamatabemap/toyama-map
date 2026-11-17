@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>食いしん坊大学生の富山たべマップ 😋</title>
   
+  <!-- アプリ化（PWA）用の設定 -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="富山たべマップ">
+  <meta name="theme-color" content="#f97316">
+  
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
@@ -41,7 +47,7 @@
       display: none !important;
     }
 
-    /* ★修正：クレジット（出典）表記をマップの一番左上に配置して邪魔にならないようにする★ */
+    /* クレジット（出典）表記を左上に配置 */
     .leaflet-left .leaflet-control-attribution {
       margin-left: 6px !important;
       margin-top: 6px !important;
@@ -103,10 +109,13 @@
 
     <!-- ヘッダー -->
     <div class="px-3 py-1.5 md:p-4 bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500 text-white shadow-sm flex items-center justify-between md:block flex-shrink-0">
-      <div>
+      <div class="flex items-center justify-between">
         <h1 class="text-xs md:text-base font-black flex items-center gap-1">
           <i class="fa-solid fa-face-grin-squint text-yellow-200"></i> 食いしん坊大学生の富山たべマップ 😋
         </h1>
+        <button id="installAppBtn" style="display:none;" onclick="installApp()" class="bg-white text-orange-600 text-[10px] font-black px-2 py-1 rounded-full shadow-md animate-pulse">
+          <i class="fa-solid fa-download"></i> アプリ化
+        </button>
       </div>
     </div>
 
@@ -166,6 +175,29 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
   <script>
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const btn = document.getElementById('installAppBtn');
+      if (btn) btn.style.display = 'block';
+    });
+
+    function installApp() {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+          if (choiceResult.outcome === 'accepted') {
+            console.log('ユーザーがアプリインストールを承認しました');
+          }
+          deferredPrompt = null;
+          document.getElementById('installAppBtn').style.display = 'none';
+        });
+      } else {
+        alert('iPhoneの方は、Safariの共有ボタン(□に↑)から「ホーム画面に追加」を選ぶとアプリとして使えます！');
+      }
+    }
+
     const firebaseConfig = {
       apiKey: "AIzaSyCokjVZVcnwDt1inWLUCfoDnPzQ7M5Y-G4",
       authDomain: "toyamap-dcb68.firebaseapp.com",
@@ -187,11 +219,10 @@
       dragging: true
     }).setView([36.6953, 137.2113], 11);
 
-    // ★修正：クレジット表記を左上（topleft）に配置
     const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
     });
-    tileLayer.options.attributionControl = false; // デフォルトの右下を一度無効化
+    tileLayer.options.attributionControl = false;
     tileLayer.addTo(myMap);
 
     L.control.attribution({position: 'topleft'}).addTo(myMap).addAttribution('&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>');
@@ -227,7 +258,7 @@
       let newHeight = startHeight + deltaY;
       
       if (newHeight >= 90 && newHeight <= window.innerHeight * 0.85) {
-        sheet.style.height = ${newHeight}px;
+        sheet.style.height = `${newHeight}px`;
       }
     }, { passive: true });
 
@@ -274,13 +305,13 @@
       if (rawUrl.includes('drive.google.com')) {
         const matches = rawUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
         if (matches && matches[1]) {
-          return https://drive.google.com/uc?export=view&id=${matches[1]};
+          return `https://drive.google.com/uc?export=view&id=${matches[1]}`;
         }
       }
 
       if (rawUrl.includes('instagram.com/p/') || rawUrl.includes('instagram.com/reel/')) {
         const cleanUrl = rawUrl.split('?')[0].replace(/\/$/, '');
-        return ${cleanUrl}/media/?size=l;
+        return `${cleanUrl}/media/?size=l`;
       }
 
       return rawUrl;
@@ -297,6 +328,7 @@
       localStorage.setItem('my_liked_spots', JSON.stringify(likes));
     }
 
+    // ★修正：Firestoreのいいね数を安全にトランザクション/インクリメントで更新＆UI即時反映
     function toggleLike(spotName, event) {
       if (event) event.stopPropagation();
 
@@ -306,17 +338,26 @@
 
       setMyLike(spotName, nextLikedState);
 
+      // 楽観的UI更新（ローカルのカウントを即時増減させる）
       const currentCount = likeCounts[spotName] || 0;
       likeCounts[spotName] = Math.max(0, currentCount + (nextLikedState ? 1 : -1));
+      applyFilterAndDraw();
 
       if (db) {
-        const docRef = db.collection('likes').doc(encodeURIComponent(spotName));
-        docRef.set({
-          count: firebase.firestore.FieldValue.increment(nextLikedState ? 1 : -1)
-        }, { merge: true }).catch(err => console.log("Like sync error:", err));
-      }
+        // ドキュメントIDに安全な文字列を使うためbtoa（Base64エンコード）またはそのまま保持
+        const docId = btoa(unescape(encodeURIComponent(spotName)));
+        const docRef = db.collection('likes').doc(docId);
 
-      applyFilterAndDraw();
+        db.runTransaction(async (transaction) => {
+          const doc = await transaction.get(docRef);
+          let newCount = (nextLikedState ? 1 : -1);
+          if (doc.exists) {
+            const data = doc.data();
+            newCount = Math.max(0, (data.count || 0) + (nextLikedState ? 1 : -1));
+          }
+          transaction.set(docRef, { name: spotName, count: newCount }, { merge: true });
+        }).catch(err => console.log("Like transaction error:", err));
+      }
     }
 
     function getCategoryStyle(cat) {
@@ -354,8 +395,21 @@
     }
 
     function formatDistanceText(rawKm) {
-      if (rawKm < 1) return ${Math.round(rawKm * 1000)}m;
-      return ${rawKm.toFixed(1)}km;
+      if (rawKm < 1) return `${Math.round(rawKm * 1000)}m`;
+      return `${rawKm.toFixed(1)}km`;
+    }
+
+    // ★修正：Firestoreのリアルタイムリスナーを最初に仕込み、他の人が押した数も自動で全体同期されるようにする
+    if (db) {
+      db.collection('likes').onSnapshot(snapshot => {
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          if (data && data.name) {
+            likeCounts[data.name] = data.count || 0;
+          }
+        });
+        applyFilterAndDraw();
+      }, err => console.log("Firestore sync notice:", err));
     }
 
     Papa.parse(csvUrl, {
@@ -380,7 +434,7 @@
 
             let gmap = row['googleMap'] || row['google_map'] || row['Googleマップ'] || '';
             if (!gmap) {
-              gmap = https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name + ' 富山')};
+              gmap = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name + ' 富山')}`;
             }
 
             const rawLat = String(row['lat'] || row['緯度'] || '').replace(/[^\d.]/g, '');
@@ -407,18 +461,6 @@
           applyFilterAndDraw();
         } catch (err) {
           console.error("CSV Parse Error:", err);
-        }
-
-        if (db) {
-          try {
-            db.collection('likes').onSnapshot(snapshot => {
-              snapshot.forEach(doc => {
-                const spotName = decodeURIComponent(doc.id);
-                likeCounts[spotName] = doc.data().count || 0;
-              });
-              applyFilterAndDraw();
-            }, err => console.log("Firestore sync notice:", err));
-          } catch(e) {}
         }
       }
     });
@@ -482,14 +524,14 @@
       data.forEach(function(s) {
         const catStyle = getCategoryStyle(s.category);
         const encodedKw = encodeURIComponent(s.instaKw);
-        const instaSearchUrl = https://www.instagram.com/explore/tags/${encodedKw}/;
+        const instaSearchUrl = `https://www.instagram.com/explore/tags/${encodedKw}/`;
         const count = likeCounts[s.name] || 0;
         const isLiked = !!myLikes[s.name];
 
         let distText = '';
         if (userLatLng) {
           const rawKm = calculateRawDistance(userLatLng.lat, userLatLng.lng, s.lat, s.lng);
-          distText = 📍 現在地から ${formatDistanceText(rawKm)};
+          distText = `📍 現在地から ${formatDistanceText(rawKm)}`;
         }
 
         const popupContent = `
@@ -514,7 +556,7 @@
                 </button>
               </div>
               
-              ${distText ? <p class="text-[8px] text-orange-600 font-extrabold">${distText}</p> : ''}
+              ${distText ? `<p class="text-[8px] text-orange-600 font-extrabold">${distText}</p>` : ''}
               
               <p class="text-[10px] text-gray-700 leading-tight font-bold bg-amber-50/80 p-1 rounded-lg border border-amber-100">💬 "${s.desc}"</p>
 
@@ -540,7 +582,7 @@
 
         const foodPinIcon = L.divIcon({
           className: 'custom-pin-wrapper',
-          html: <div class="custom-food-pin" style="background-color: ${catStyle.color}">${catStyle.emoji}</div>,
+          html: `<div class="custom-food-pin" style="background-color: ${catStyle.color}">${catStyle.emoji}</div>`,
           iconSize: [26, 26],
           iconAnchor: [13, 13],
           popupAnchor: [0, -10]
@@ -577,7 +619,7 @@
             </div>
             <p class="text-[9px] text-gray-500 font-bold truncate mt-0.5">${s.desc}</p>
             <div class="flex items-center justify-between mt-1">
-              ${distText ? <span class="text-[8px] font-black text-orange-600">${distText}</span> : '<span></span>'}
+              ${distText ? `<span class="text-[8px] font-black text-orange-600">${distText}</span>` : '<span></span>'}
               <button onclick="toggleLike('${s.name}', event)" class="text-[8px] font-black ${isLiked ? 'text-white bg-red-500' : 'text-red-500 bg-red-50'} px-1.5 py-0.5 rounded-full flex items-center gap-0.5 border border-red-100">
                 <i class="fa-solid fa-heart text-[7px]"></i> ${count}
               </button>
@@ -652,7 +694,7 @@
       if (userMarker) myMap.removeLayer(userMarker);
       
       const userIcon = L.divIcon({
-        html: <div class="w-6 h-6 rounded-full bg-red-500 border-2 border-white shadow-lg flex items-center justify-center text-white text-[9px] animate-bounce">📍</div>,
+        html: `<div class="w-6 h-6 rounded-full bg-red-500 border-2 border-white shadow-lg flex items-center justify-center text-white text-[9px] animate-bounce">📍</div>`,
         iconSize: [24, 24],
         iconAnchor: [12, 12]
       });
